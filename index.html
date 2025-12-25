@@ -8,38 +8,28 @@
   <style>
     html, body { margin:0; height:100%; background:#000; overflow:hidden; }
     canvas { display:block; width:100vw; height:100vh; touch-action:none; }
-    /* 手写连笔：用常见系统脚本字体栈，尽量接近“手写” */
-    .caption {
-      position: fixed;
-      left: 0; right: 0;
+    .caption{
+      position: fixed; left:0; right:0;
       bottom: clamp(26px, 7.5vh, 68px);
-      text-align: center;
-      pointer-events: none;
-      user-select: none;
+      text-align:center;
+      pointer-events:none; user-select:none;
       mix-blend-mode: screen;
-      filter: drop-shadow(0 0 12px rgba(255,220,190,.22))
-              drop-shadow(0 0 24px rgba(120,190,255,.10));
+      filter: drop-shadow(0 0 14px rgba(255,220,190,.28))
+              drop-shadow(0 0 28px rgba(120,190,255,.14));
     }
     .caption span{
       display:inline-block;
       font-size: clamp(28px, 6.2vw, 72px);
-      letter-spacing: 0.5px;
       font-weight: 500;
-      color: rgba(255, 245, 235, 0.92);
+      color: rgba(255, 245, 235, 0.94);
       font-family:
-        "Snell Roundhand",
-        "Segoe Script",
-        "Apple Chancery",
-        "Lucida Handwriting",
-        "Brush Script MT",
-        "Comic Sans MS",
-        cursive;
+        "Snell Roundhand","Segoe Script","Apple Chancery",
+        "Lucida Handwriting","Brush Script MT","Comic Sans MS",cursive;
       transform: rotate(-1.2deg);
     }
-    .hint {
-      position: fixed;
-      top: 12px; left: 12px;
-      color: rgba(255,255,255,.55);
+    .hint{
+      position: fixed; top: 12px; left: 12px;
+      color: rgba(255,255,255,.58);
       font: 12px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
       background: rgba(255,255,255,.06);
       border: 1px solid rgba(255,255,255,.10);
@@ -52,9 +42,9 @@
   </style>
 </head>
 <body>
-  <canvas id="c"></canvas>
-  <div class="hint">拖动旋转｜滚轮/双指捏合：星尘散开↔汇聚</div>
-  <div class="caption"><span>Merry Christmas</span></div>
+<canvas id="c"></canvas>
+<div class="hint">拖动旋转｜滚轮/双指捏合：散开↔汇聚</div>
+<div class="caption"><span>Merry Christmas</span></div>
 
 <script>
 (() => {
@@ -83,244 +73,201 @@
   addEventListener('resize', resize, {passive:true});
   resize();
 
-  // ======= 3D-ish camera controls (simple yaw/pitch) =======
-  let yaw = 0.55;      // horizontal rotation
-  let pitch = -0.20;   // slight tilt down
-  let yawTarget = yaw;
-  let pitchTarget = pitch;
+  // ===== Controls =====
+  let yaw = 0.4, pitch = -0.18;
+  let yawTarget = yaw, pitchTarget = pitch;
 
-  // scatter: 0 = tree cohesive, 1 = dispersed star-dust
-  let scatter = 0.0;
-  let scatterTarget = 0.0;
+  let scatter = 0.0, scatterTarget = 0.0;
 
-  // ======= Interaction: drag rotate =======
-  let dragging = false;
-  let lastX = 0, lastY = 0;
-
-  canvas.addEventListener('pointerdown', (e) => {
-    dragging = true;
+  // drag rotate (mouse + touch via pointer)
+  let dragging=false, lastX=0, lastY=0;
+  canvas.addEventListener('pointerdown', (e)=>{
+    dragging=true;
     canvas.setPointerCapture?.(e.pointerId);
-    lastX = e.clientX; lastY = e.clientY;
+    lastX=e.clientX; lastY=e.clientY;
   }, {passive:true});
-
-  canvas.addEventListener('pointermove', (e) => {
+  canvas.addEventListener('pointermove', (e)=>{
     if(!dragging) return;
-    const dx = e.clientX - lastX;
-    const dy = e.clientY - lastY;
-    lastX = e.clientX; lastY = e.clientY;
-
-    // 旋转手感：手机和桌面一致，略微阻尼
-    yawTarget += dx * 0.0065;
-    pitchTarget += dy * 0.0045;
+    const dx=e.clientX-lastX, dy=e.clientY-lastY;
+    lastX=e.clientX; lastY=e.clientY;
+    yawTarget += dx*0.0068;
+    pitchTarget += dy*0.0048;
     pitchTarget = clamp(pitchTarget, -0.75, 0.35);
   }, {passive:true});
+  canvas.addEventListener('pointerup', ()=>dragging=false, {passive:true});
+  canvas.addEventListener('pointercancel', ()=>dragging=false, {passive:true});
+  canvas.addEventListener('pointerleave', ()=>dragging=false, {passive:true});
 
-  canvas.addEventListener('pointerup', () => dragging=false, {passive:true});
-  canvas.addEventListener('pointercancel', () => dragging=false, {passive:true});
-  canvas.addEventListener('pointerleave', () => dragging=false, {passive:true});
-
-  // ======= Desktop: wheel controls scatter =======
-  canvas.addEventListener('wheel', (e) => {
+  // wheel controls scatter
+  canvas.addEventListener('wheel', (e)=>{
     e.preventDefault();
-    const delta = Math.sign(e.deltaY);
-    scatterTarget = clamp(scatterTarget + delta*0.06, 0, 1);
+    scatterTarget = clamp(scatterTarget + Math.sign(e.deltaY)*0.07, 0, 1);
   }, {passive:false});
 
-  // ======= Mobile: pinch controls scatter =======
+  // pinch controls scatter (touch)
   const touches = new Map();
-  let pinchStartDist = 0;
-  let pinchStartScatter = 0;
-
-  canvas.addEventListener('touchstart', (e) => {
+  let pinchStartDist=0, pinchStartScatter=0;
+  canvas.addEventListener('touchstart', (e)=>{
     for(const t of e.changedTouches) touches.set(t.identifier, {x:t.clientX,y:t.clientY});
-    if(touches.size === 2){
-      const pts = [...touches.values()];
+    if(touches.size===2){
+      const pts=[...touches.values()];
       pinchStartDist = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
       pinchStartScatter = scatterTarget;
     }
   }, {passive:false});
-
-  canvas.addEventListener('touchmove', (e) => {
+  canvas.addEventListener('touchmove', (e)=>{
     e.preventDefault();
     for(const t of e.changedTouches) touches.set(t.identifier, {x:t.clientX,y:t.clientY});
-    if(touches.size === 2){
-      const pts = [...touches.values()];
+    if(touches.size===2){
+      const pts=[...touches.values()];
       const d = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
-      if(pinchStartDist > 0){
-        // d 变大：更散；d 变小：更聚
-        const k = (d - pinchStartDist) / Math.max(120, Math.min(W,H)*0.35);
+      if(pinchStartDist>0){
+        const k = (d-pinchStartDist) / Math.max(120, Math.min(W,H)*0.35);
         scatterTarget = clamp(pinchStartScatter + k, 0, 1);
       }
     }
   }, {passive:false});
-
-  canvas.addEventListener('touchend', (e) => {
+  canvas.addEventListener('touchend', (e)=>{
     for(const t of e.changedTouches) touches.delete(t.identifier);
-    if(touches.size < 2){ pinchStartDist = 0; }
+    if(touches.size<2) pinchStartDist=0;
+  }, {passive:true});
+  canvas.addEventListener('touchcancel', ()=>{
+    touches.clear(); pinchStartDist=0;
   }, {passive:true});
 
-  canvas.addEventListener('touchcancel', (e) => {
-    for(const t of e.changedTouches) touches.delete(t.identifier);
-    pinchStartDist = 0;
-  }, {passive:true});
-
-  // ======= Particle system =======
-  // Tree occupies ~3/4 height in view
-  const N = 5200; // 粒子量：手机也能跑，若你要更“浓”可加到 8000
+  // ===== Tree params (tuned to be clearly visible) =====
+  const N = 7000; // 更容易看见树形（仍能跑）
   const particles = new Array(N);
 
-  // tree dimensions in world space
   function treeParams(){
-    const treeH = 1.55;       // world units
-    const baseR = 0.62;       // base radius
-    return { treeH, baseR };
+    return { treeH: 1.65, baseR: 0.70 };
   }
 
-  // Build a spiral-ish conical tree with fuzzy edges
-  // Each particle has:
-  // base (tree) position, scatter offset vector, size, color bias, twinkle params
   function initParticles(){
     const { treeH, baseR } = treeParams();
     for(let i=0;i<N;i++){
-      // y along height, bias to keep more density mid-lower
-      const u = Math.pow(Math.random(), 0.65);
+      const u = Math.pow(Math.random(), 0.62);
       const y = u * treeH;
 
-      // radius decreases towards top (cone); add fuzz to make edges unclear
       const coneR = (1 - (y/treeH)) * baseR;
-      const edgeFuzz = coneR * rand(0.15, 0.55);
 
-      // Spiral: theta advances with y; plus randomness
-      const spiralTurns = 7.5;
-      const theta = y/treeH * Math.PI*2*spiralTurns + rand(-0.75, 0.75);
+      // 轮廓不清晰：边缘 fuzz，但别把 r 采到 0（否则集中成一根线）
+      const edgeFuzz = coneR * rand(0.22, 0.62);
+      const spiralTurns = 8.2;
 
-      // radial distribution: mostly near silhouette, but fuzzy
-      const r = clamp(coneR + rand(-edgeFuzz, edgeFuzz), 0, baseR);
+      const theta = y/treeH * Math.PI*2*spiralTurns + rand(-0.55, 0.55);
 
-      // In cone cross-section
+      // 让粒子更倾向靠近“外轮廓”，这样更像树
+      const rimBias = Math.pow(Math.random(), 0.22); // 越小越靠外
+      const r = clamp(coneR * (0.58 + 0.45*rimBias) + rand(-edgeFuzz, edgeFuzz)*0.55, 0.02, baseR);
+
       const x = Math.cos(theta) * r;
       const z = Math.sin(theta) * r;
 
-      // additional small jitter for "star dust flow"
-      const jx = rand(-0.02, 0.02), jy = rand(-0.02, 0.02), jz = rand(-0.02, 0.02);
+      // 极微扰动
+      const j = 0.014;
+      const jx = rand(-j,j), jy = rand(-j,j), jz = rand(-j,j);
 
-      // scatter offset: when dispersed, push outward in a cosmic swirl + some vertical drift
+      // 散开向量：宇宙星尘旋涡
       const so = {
-        x: (Math.cos(theta*0.7) * rand(0.4, 1.4) + rand(-0.2,0.2)) * baseR,
-        y: (rand(-0.35, 0.55)) * treeH,
-        z: (Math.sin(theta*0.7) * rand(0.4, 1.4) + rand(-0.2,0.2)) * baseR
+        x: (Math.cos(theta*0.65) * rand(0.55, 1.55) + rand(-0.18,0.18)) * baseR,
+        y: (rand(-0.45, 0.65)) * treeH,
+        z: (Math.sin(theta*0.65) * rand(0.55, 1.55) + rand(-0.18,0.18)) * baseR
       };
 
-      // size: very small, varied
-      const size = rand(0.55, 1.65) * (Math.random() < 0.10 ? rand(1.2, 1.9) : 1);
+      // 粒子尺寸：仍“细小”，但让一小部分更亮当高光点
+      const isBright = Math.random() < 0.14;
+      const size = rand(0.7, 1.9) * (isBright ? rand(1.2, 2.1) : 1.0);
 
-      // warm/cool split: bottom slightly warmer, top slightly cooler; plus random
-      const warm = clamp(0.55 - (y/treeH)*0.25 + rand(-0.12,0.12), 0, 1);
+      // 暖冷对比：底部更暖、顶部更冷一点
+      const warm = clamp(0.62 - (y/treeH)*0.28 + rand(-0.10,0.10), 0, 1);
 
-      // twinkle
       const phase = rand(0, Math.PI*2);
-      const speed = rand(0.6, 2.2);
-      const tw = rand(0.25, 1.0);
+      const speed = rand(0.7, 2.6);
+      const tw = isBright ? rand(0.8, 1.4) : rand(0.25, 1.0);
 
-      particles[i] = {
-        base: { x:x+jx, y:y+jy, z:z+jz },
-        scatter: so,
-        size,
-        warm,
-        phase, speed, tw
-      };
+      particles[i] = { base:{x:x+jx,y:y+jy,z:z+jz}, scatter:so, size, warm, phase, speed, tw, isBright };
     }
   }
   initParticles();
 
-  // ======= 3D transform =======
-  function rotateY(p, a){
+  // ===== 3D math =====
+  function rotateY(p,a){
     const ca=Math.cos(a), sa=Math.sin(a);
     return { x: p.x*ca + p.z*sa, y:p.y, z: -p.x*sa + p.z*ca };
   }
-  function rotateX(p, a){
+  function rotateX(p,a){
     const ca=Math.cos(a), sa=Math.sin(a);
-    return { x: p.x, y: p.y*ca - p.z*sa, z: p.y*sa + p.z*ca };
+    return { x:p.x, y:p.y*ca - p.z*sa, z:p.y*sa + p.z*ca };
   }
 
-  // perspective projection
+  // perspective projection (tuned: closer camera + stronger focal => tree fills ~3/4)
   function project(p){
-    // camera
-    const camZ = 2.35;
+    const camZ = 1.65; // 更近 => 更大更清晰
     const z = p.z + camZ;
-    const f = 520; // focal-like
+    const f = 900;     // 更强透视
     const s = f / z;
-
     const cx = W*0.5;
-    const cy = H*0.52; // slightly lower to leave room for star and text
+    const cy = H*0.54; // 稍微下移，留出顶部星星与底部文字
     return {
-      x: cx + p.x * s * (Math.min(W,H)/820),
-      y: cy - (p.y - 0.12) * s * (Math.min(W,H)/820),
-      s: s,
-      z: z
+      x: cx + p.x * s * (Math.min(W,H)/880),
+      y: cy - (p.y - 0.10) * s * (Math.min(W,H)/880),
+      s, z
     };
   }
 
-  // ======= Rendering helpers =======
   function rgba(r,g,b,a){ return `rgba(${r|0},${g|0},${b|0},${a})`; }
-
   function colorFor(warm, a){
-    // cool-warm contrast with dreamy cosmic tint
-    // warm -> peach/gold, cool -> cyan/ice
-    const cool = 1 - warm;
-    const r = lerp(120, 255, warm) + lerp(0, 20, cool);
-    const g = lerp(170, 225, warm) + lerp(25, 45, cool);
-    const b = lerp(255, 210, warm) + lerp(0, 20, warm) + lerp(0, 40, cool);
-    return rgba(r, g, b, a);
+    const cool = 1-warm;
+    const r = lerp(95, 255, warm) + lerp(35, 0, warm);
+    const g = lerp(150, 235, warm) + lerp(40,  18, cool);
+    const b = lerp(255, 205, warm) + lerp(35,  85, cool);
+    return rgba(r,g,b,a);
   }
 
-  function drawVignette(){
+  function drawBackdrop(){
     ctx.clearRect(0,0,W,H);
 
-    // subtle ambience glow behind tree
-    const cx=W*0.5, cy=H*0.48;
-    const R=Math.min(W,H)*0.62;
-    const g = ctx.createRadialGradient(cx,cy, 10, cx,cy, R);
-    g.addColorStop(0, 'rgba(140,200,255,0.055)');
-    g.addColorStop(0.55, 'rgba(255,190,140,0.025)');
+    // very subtle ambient glow behind the tree center (still black overall)
+    const cx=W*0.5, cy=H*0.46;
+    const R=Math.min(W,H)*0.70;
+    const g = ctx.createRadialGradient(cx,cy, 8, cx,cy, R);
+    g.addColorStop(0, 'rgba(140,200,255,0.070)');
+    g.addColorStop(0.50, 'rgba(255,190,140,0.030)');
     g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g;
     ctx.fillRect(0,0,W,H);
 
-    // extra vignette
-    const v = ctx.createRadialGradient(cx, cy, R*0.35, cx,cy, R*1.05);
+    // reduce vignette strength to avoid killing visibility
+    const v = ctx.createRadialGradient(cx,cy, R*0.30, cx,cy, R*1.05);
     v.addColorStop(0, 'rgba(0,0,0,0)');
-    v.addColorStop(1, 'rgba(0,0,0,0.92)');
+    v.addColorStop(1, 'rgba(0,0,0,0.78)');
     ctx.fillStyle = v;
     ctx.fillRect(0,0,W,H);
   }
 
-  function drawStar(x,y,baseR, intensity){
-    // tiny star shape with bloom
-    const bloomR = baseR * lerp(7.5, 11.5, intensity);
-
+  function drawStar(x,y,baseR,intensity){
+    const bloomR = baseR * lerp(8.0, 13.0, intensity);
     const glow = ctx.createRadialGradient(x,y, 0.5, x,y, bloomR);
-    glow.addColorStop(0, 'rgba(255,245,210,0.55)');
-    glow.addColorStop(0.18, 'rgba(255,240,200,0.22)');
+    glow.addColorStop(0, 'rgba(255,245,210,0.82)');
+    glow.addColorStop(0.18, 'rgba(255,240,200,0.34)');
     glow.addColorStop(1, 'rgba(255,240,200,0)');
     ctx.fillStyle = glow;
     ctx.beginPath(); ctx.arc(x,y,bloomR,0,Math.PI*2); ctx.fill();
 
-    // star rays (cross)
     ctx.save();
     ctx.translate(x,y);
-    ctx.rotate(-Math.PI/10);
+    ctx.rotate(-Math.PI/12);
     ctx.globalCompositeOperation = 'screen';
-    ctx.strokeStyle = 'rgba(255,250,230,0.65)';
-    ctx.lineWidth = 1.0;
+    ctx.strokeStyle = 'rgba(255,250,230,0.72)';
+    ctx.lineWidth = 1.2;
     ctx.beginPath();
-    ctx.moveTo(-bloomR*0.85,0); ctx.lineTo(bloomR*0.85,0);
-    ctx.moveTo(0,-bloomR*0.85); ctx.lineTo(0,bloomR*0.85);
+    ctx.moveTo(-bloomR*0.9,0); ctx.lineTo(bloomR*0.9,0);
+    ctx.moveTo(0,-bloomR*0.9); ctx.lineTo(0,bloomR*0.9);
     ctx.stroke();
 
-    // tiny 5-point star core
+    const spikes=5, outer=baseR*2.2, inner=baseR*0.9;
     ctx.rotate(Math.PI/5);
-    const spikes=5, outer=baseR*2.0, inner=baseR*0.85;
     ctx.beginPath();
     for(let i=0;i<spikes;i++){
       let a=i*Math.PI*2/spikes;
@@ -329,112 +276,91 @@
       ctx.lineTo(Math.cos(a)*inner, Math.sin(a)*inner);
     }
     ctx.closePath();
-    ctx.fillStyle = 'rgba(255,250,235,0.95)';
-    ctx.shadowColor = 'rgba(255,230,180,0.85)';
-    ctx.shadowBlur = 18 * intensity;
+    ctx.fillStyle='rgba(255,250,235,0.98)';
+    ctx.shadowColor='rgba(255,220,160,0.90)';
+    ctx.shadowBlur=22*intensity;
     ctx.fill();
     ctx.restore();
     ctx.globalCompositeOperation = 'source-over';
   }
 
-  // ======= Animation =======
   let t0 = performance.now();
-
   function frame(now){
     const t = (now - t0) / 1000;
 
-    // smooth controls
     yaw = lerp(yaw, yawTarget, 0.12);
     pitch = lerp(pitch, pitchTarget, 0.12);
     scatter = lerp(scatter, scatterTarget, 0.10);
 
-    drawVignette();
+    drawBackdrop();
 
-    // slight auto-rotation for dreamy motion (keeps user control dominant)
-    const auto = 0.12 * (1 - smoothstep(0, 0.8, Math.abs(yawTarget - yaw)));
-    const yawAnim = yaw + Math.sin(t*0.28)*0.10 + t*0.05*auto;
+    // gentle auto motion
+    const yawAnim = yaw + Math.sin(t*0.25)*0.10;
 
-    // tree scale in screen
-    const scale = Math.min(W,H) * 0.62;
+    // scale
+    const scale = Math.min(W,H) * 0.60;
 
-    // draw particles back-to-front (sort by z)
+    // compute + sort
     const pts = new Array(N);
 
-    // blending
-    ctx.save();
-    ctx.globalCompositeOperation = 'screen';
-
-    // compute all projected points
     for(let i=0;i<N;i++){
       const p = particles[i];
 
-      // breathing flow along spiral
-      const flow = Math.sin(t*0.9 + p.phase) * 0.018;
+      // flowing dust motion
+      const flow = 0.030 * Math.sin(t*0.95 + p.phase);
+      let wx = p.base.x + flow*Math.cos(p.phase*1.7);
+      let wy = p.base.y + flow*0.25;
+      let wz = p.base.z + flow*Math.sin(p.phase*1.7);
 
-      // cohesive position
-      let wx = p.base.x + flow * Math.cos(p.phase*1.7);
-      let wy = p.base.y + flow * 0.35;
-      let wz = p.base.z + flow * Math.sin(p.phase*1.7);
-
-      // dispersed position (cosmic dust)
-      const drift = 0.18 * Math.sin(t*0.35 + p.phase);
+      const drift = 0.22 * Math.sin(t*0.35 + p.phase);
       const dx = p.scatter.x + drift*Math.cos(p.phase);
-      const dy = p.scatter.y + drift*0.35;
+      const dy = p.scatter.y + drift*0.30;
       const dz = p.scatter.z + drift*Math.sin(p.phase);
 
-      // mix by scatter (nonlinear for nicer feel)
-      const s = smoothstep(0, 1, scatter);
+      const s = smoothstep(0,1,scatter);
       wx = lerp(wx, wx + dx, s);
       wy = lerp(wy, wy + dy, s);
       wz = lerp(wz, wz + dz, s);
 
-      // normalize / scale in world
-      let P = { x: wx, y: wy, z: wz };
-
-      // rotate tree
+      let P = {x:wx, y:wy, z:wz};
       P = rotateY(P, yawAnim);
       P = rotateX(P, pitch);
-
-      // scale to screen-ish world
-      P.x *= scale;
-      P.y *= scale;
-      P.z *= scale;
+      P.x *= scale; P.y *= scale; P.z *= scale;
 
       const pr = project(P);
 
-      // visibility and size
-      const depthFade = clamp(1.55 - pr.z/3.2, 0, 1);
+      // depth fade (less aggressive)
+      const depthFade = clamp(1.35 - pr.z/3.1, 0, 1);
+
       const twinkle = 0.35 + (Math.sin(t*p.speed + p.phase)*0.5+0.5) * p.tw;
 
-      // near top slightly brighter
-      const topBoost = smoothstep(0.75, 1.02, p.base.y / treeParams().treeH);
-      const alpha = (0.06 + 0.18*twinkle + 0.08*topBoost) * depthFade;
+      const topBoost = smoothstep(0.70, 1.02, p.base.y / treeParams().treeH);
+      const brightBoost = p.isBright ? 0.10 : 0.0;
 
-      // particle radius in px
-      const r = p.size * (0.55 + 0.55*twinkle) * clamp(pr.s, 0.55, 1.6);
+      // IMPORTANT: brighter alpha so you can actually see the tree
+      const alpha = (0.18 + 0.38*twinkle + 0.14*topBoost + brightBoost) * depthFade;
 
-      pts[i] = {
-        x: pr.x, y: pr.y, z: pr.z,
-        r,
-        a: alpha,
-        warm: p.warm,
-        tw: twinkle
-      };
+      const r = p.size * (0.65 + 0.75*twinkle) * clamp(pr.s, 0.55, 1.9);
+
+      pts[i] = { x:pr.x, y:pr.y, z:pr.z, r, a:alpha, warm:p.warm, tw:twinkle, isBright:p.isBright };
     }
 
     pts.sort((a,b)=> b.z - a.z);
 
-    // draw particles
-    for(const q of pts){
-      if(q.a <= 0.001) continue;
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
 
-      // small bloom per particle for “星尘流动光影”
-      const bloom = q.r * (3.2 + q.tw*2.5);
+    // slight exposure lift (keeps black background, makes glow readable)
+    ctx.fillStyle = 'rgba(60,90,130,0.045)';
+    ctx.fillRect(0,0,W,H);
+
+    for(const q of pts){
+      if(q.a <= 0.002) continue;
+
+      const bloom = q.r * (5.2 + q.tw*4.2);
       const g = ctx.createRadialGradient(q.x,q.y, 0.2, q.x,q.y, bloom);
-      const col = colorFor(q.warm, 1);
-      // emulate glowing dust: core + halo
-      g.addColorStop(0, colorFor(q.warm, q.a*0.85));
-      g.addColorStop(0.22, colorFor(q.warm, q.a*0.28));
+      g.addColorStop(0, colorFor(q.warm, q.a*1.05));
+      g.addColorStop(0.18, colorFor(q.warm, q.a*0.45));
       g.addColorStop(1, colorFor(q.warm, 0));
 
       ctx.fillStyle = g;
@@ -442,7 +368,8 @@
       ctx.arc(q.x, q.y, bloom, 0, Math.PI*2);
       ctx.fill();
 
-      ctx.fillStyle = colorFor(q.warm, q.a*0.35);
+      // core
+      ctx.fillStyle = colorFor(q.warm, q.a*0.22);
       ctx.beginPath();
       ctx.arc(q.x, q.y, q.r, 0, Math.PI*2);
       ctx.fill();
@@ -450,25 +377,22 @@
 
     ctx.restore();
 
-    // ======= Star at top (very bright, tiny but dazzling) =======
-    // compute approximate top position in same transform
+    // star at top
     const { treeH } = treeParams();
-    let top = { x: 0, y: treeH + 0.02, z: 0 };
+    let top = { x:0, y:treeH + 0.02, z:0 };
     top = rotateY(top, yawAnim);
     top = rotateX(top, pitch);
     top.x *= scale; top.y *= scale; top.z *= scale;
     const tp = project(top);
 
-    const starPulse = 0.65 + 0.35*Math.sin(t*2.1);
-    const starIntensity = clamp(0.85 + 0.55*starPulse, 0.85, 1.4);
-    drawStar(tp.x, tp.y, 2.0, starIntensity);
+    const starPulse = 0.65 + 0.35*Math.sin(t*2.2);
+    drawStar(tp.x, tp.y, 2.2, clamp(0.95 + 0.65*starPulse, 0.95, 1.6));
 
-    // ======= subtle ground haze to anchor tree =======
-    const gx = W*0.5, gy = H*0.72;
-    const gr = Math.min(W,H)*0.42;
-    const ground = ctx.createRadialGradient(gx,gy, 20, gx,gy, gr);
-    ground.addColorStop(0, 'rgba(255,230,200,0.018)');
-    ground.addColorStop(0.35, 'rgba(120,190,255,0.012)');
+    // ground haze
+    const gx=W*0.5, gy=H*0.73, gr=Math.min(W,H)*0.46;
+    const ground = ctx.createRadialGradient(gx,gy, 30, gx,gy, gr);
+    ground.addColorStop(0, 'rgba(255,230,200,0.020)');
+    ground.addColorStop(0.38,'rgba(120,190,255,0.016)');
     ground.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = ground;
     ctx.fillRect(0,0,W,H);
@@ -477,7 +401,6 @@
   }
 
   requestAnimationFrame(frame);
-
 })();
 </script>
 </body>
