@@ -1,270 +1,247 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#000000" />
-  <title>Merry Christmas</title>
-  <style>
-    /* 纯黑背景，无边距 */
-    html, body { 
-      margin: 0; 
-      height: 100%; 
-      background-color: #000; 
-      overflow: hidden; 
-    }
-    
-    canvas { 
-      display: block; 
-      width: 100vw; 
-      height: 100vh; 
-    }
-    
-    /* 底部文字：手写风格，柔和发光 */
-    .caption {
-      position: fixed; 
-      left: 0; 
-      right: 0;
-      bottom: 10%; /* 黄金分割位置 */
-      text-align: center;
-      pointer-events: none; 
-      user-select: none;
-      z-index: 10;
-    }
-    
-    .caption span {
-      display: inline-block;
-      font-size: clamp(36px, 9vw, 72px);
-      font-family: "Snell Roundhand", "Brush Script MT", "Segoe Script", "Apple Chancery", cursive;
-      color: rgba(255, 248, 235, 0.9); /* 奶白色 */
-      text-shadow: 
-        0 0 10px rgba(255, 200, 100, 0.6),
-        0 0 20px rgba(255, 100, 50, 0.3);
-      transform: rotate(-3deg); /* 微微倾斜更具手写感 */
-      letter-spacing: 2px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cosmic Christmas Tree</title>
+    <!-- 引入优雅的草书字体 -->
+    <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000000; /* 深邃纯黑背景 */
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* 预加载字体防止画布渲染延迟 */
+        .font-loader {
+            font-family: 'Great Vibes', cursive;
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
 </head>
 <body>
+    <div class="font-loader">Merry Christmas</div>
+    <canvas id="canvas"></canvas>
 
-<canvas id="c"></canvas>
-<div class="caption"><span>Merry Christmas</span></div>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
 
-<script>
-(() => {
-  const canvas = document.getElementById('c');
-  const ctx = canvas.getContext('2d', { alpha: false }); 
+        let width, height;
+        let particles = [];
+        const particleCount = 1200; // 粒子数量
+        let time = 0;
 
-  // 基础工具
-  const rand = (a, b) => a + Math.random() * (b - a);
-  const lerp = (a, b, t) => a + (b - a) * t;
+        // 调整画布大小
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
 
-  let W, H, cx, cy;
-  // 限制 DPR 既保证清晰度又不让手机发烫
-  const DPR = Math.min(2.0, window.devicePixelRatio || 1);
+        // 颜色配置：冷暖对比 (青色, 紫色, 金色)
+        const colors = [
+            'hsla(180, 100%, 70%, ',  // Neon Cyan
+            'hsla(280, 100%, 70%, ',  // Neon Purple
+            'hsla(45, 100%, 70%, '    // Warm Gold
+        ];
 
-  function resize() {
-    W = window.innerWidth;
-    H = window.innerHeight;
-    canvas.width = W * DPR;
-    canvas.height = H * DPR;
-    ctx.scale(DPR, DPR);
-    cx = W / 2;
-    cy = H / 2;
-  }
-  window.addEventListener('resize', resize);
-  resize();
+        class Particle {
+            constructor() {
+                this.reset();
+                this.y = Math.random() * height; // 初始随机高度，避免一开始都在底部
+            }
 
-  // ================= 粒子系统配置 =================
-  const N = 2600; // 粒子数量：足够密集形成模糊轮廓
-  const particles = [];
+            reset() {
+                this.angle = Math.random() * Math.PI * 2;
+                this.radiusScale = Math.random();
+                this.y = height + Math.random() * 100; // 从底部下方生成
+                this.speed = 1 + Math.random() * 1.5;
+                this.size = Math.random() * 2.5; // 粒子大小错落
+                this.colorBase = colors[Math.floor(Math.random() * colors.length)];
+                this.alpha = 0;
+                this.sparklePhase = Math.random() * Math.PI;
+                // 螺旋参数
+                this.spiralOffset = Math.random() * Math.PI; 
+            }
 
-  function init() {
-    for (let i = 0; i < N; i++) {
-      // 0 ~ 1，越接近 1 越高
-      const t = Math.pow(Math.random(), 0.7); 
-      
-      const h = 380;   // 树高
-      const maxR = 140; // 底部最大半径
-      
-      const y = -h/2 + t * h; 
-      
-      // 螺旋半径：线性减小，形成圆锥
-      const rBase = (1 - t) * maxR;
-      // 关键：增加随机偏移 (Fuzziness)，制造“边缘不清晰”的星尘感
-      const r = rBase + rand(-18, 18) * (1 - t * 0.5); 
-      
-      // 螺旋角度
-      const turns = 7; 
-      const angle = t * Math.PI * 2 * turns + rand(0, 0.5);
+            update() {
+                // 向上移动
+                this.y -= this.speed;
 
-      const x = Math.cos(angle) * r;
-      const z = Math.sin(angle) * r;
+                // 简单的闪烁逻辑
+                this.sparklePhase += 0.1;
+                this.alpha = 0.3 + Math.abs(Math.sin(this.sparklePhase)) * 0.7;
 
-      // 颜色混合：0 = 冰蓝(未来感), 1 = 金色(温馨)
-      // 底部偏暖，顶部偏冷，中间随机混合
-      const colorMix = 1 - t + rand(-0.15, 0.15);
+                // 如果超出顶部，重置到底部
+                const treeTop = height * 0.2;
+                if (this.y < treeTop) {
+                    this.reset();
+                    this.y = height * 0.9; // 重置到底部附近
+                    this.alpha = 0; // 渐入
+                }
+            }
 
-      particles.push({
-        baseX: x, baseY: y, baseZ: z, // 原始坐标
-        colorMix: Math.max(0, Math.min(1, colorMix)),
-        size: rand(0.5, 2.0),         // 粒子大小错落
-        blinkOffset: rand(0, Math.PI * 2), // 闪烁相位
-        blinkSpeed: rand(1, 3)        // 闪烁速度
-      });
-    }
-  }
-  init();
+            draw() {
+                // 计算树的形状：圆锥体
+                // 随着y向上（值变小），半径变小
+                const treeHeight = height * 0.7;
+                const treeBottom = height * 0.9;
+                const progress = (treeBottom - this.y) / treeHeight; // 0 (bottom) to 1 (top)
+                
+                if (progress < 0) return; // 低于树底不画
 
-  // ================= 渲染循环 =================
-  function draw() {
-    // 自动时间流
-    const time = performance.now() * 0.001;
-    
-    // 极其缓慢的自转，展示3D感
-    const autoYaw = time * 0.2; 
-    const pitch = -0.15; // 稍微俯视一点点，最美视角
+                // 核心螺旋逻辑
+                // 半径随高度减小，呈非线性曲线更加优雅
+                const currentRadius = (1 - Math.pow(progress, 0.8)) * (width < 600 ? 120 : 250);
+                
+                // 角度随高度旋转，形成螺旋
+                const rotation = time * 0.5 + progress * 10 + this.spiralOffset;
+                
+                const x = width / 2 + Math.cos(rotation) * currentRadius;
+                // 加入一点正弦波动，模拟3D透视的z轴压缩感
+                const zOffset = Math.sin(rotation) * (currentRadius * 0.3); 
+                const y = this.y + zOffset;
 
-    // 清空背景 (纯黑)
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, W, H);
+                // 越靠近中心/顶部，越亮
+                const finalAlpha = this.alpha * (1 - Math.pow(progress, 4)) * (progress > 0.9 ? 0 : 1); 
 
-    const pData = [];
-    const focal = 900; // 长焦镜头，画面更平整唯美
-    
-    const cy_cos = Math.cos(autoYaw), cy_sin = Math.sin(autoYaw);
-    const cx_cos = Math.cos(pitch), cx_sin = Math.sin(pitch);
+                ctx.beginPath();
+                // 粒子绘制
+                ctx.fillStyle = this.colorBase + finalAlpha + ')';
+                // 模拟景深：前面的大，后面的小
+                const perspective = (Math.sin(rotation) + 2) / 3; 
+                ctx.arc(x, y, this.size * perspective * (1-progress*0.5), 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 添加极弱的光晕
+                if (Math.random() > 0.95) {
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = this.colorBase + '1)';
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+            }
+        }
 
-    // 1. 计算粒子
-    for (let i = 0; i < N; i++) {
-      const p = particles[i];
+        // 初始化粒子
+        for (let i = 0; i < particleCount; i++) {
+            particles.push(new Particle());
+        }
 
-      // 微弱的流动感：y轴上轻微上下浮动
-      const flow = Math.sin(time * 2 + p.baseY * 0.05) * 1.5;
-      let py = p.baseY + flow;
-      
-      // 旋转
-      let x1 = p.baseX * cy_cos - p.baseZ * cy_sin;
-      let z1 = p.baseZ * cy_cos + p.baseX * cy_sin;
-      let y2 = py * cx_cos - z1 * cx_sin;
-      let z2 = z1 * cx_cos + py * cx_sin;
+        function drawStar() {
+            const treeTopY = height * 0.2;
+            const cx = width / 2;
+            const cy = treeTopY;
 
-      // 投影
-      const depth = z2 + 700; // 相机距离
-      if (depth < 50) continue; 
+            ctx.save();
+            ctx.translate(cx, cy);
+            
+            // 耀眼光芒（多层叠加）
+            const gradient = ctx.createRadialGradient(0, 0, 1, 0, 0, 30);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            gradient.addColorStop(0.2, 'rgba(255, 255, 200, 0.8)');
+            gradient.addColorStop(0.5, 'rgba(0, 242, 255, 0.3)'); // 青色外晕
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
-      const scale = focal / depth;
-      const screenX = cx + x1 * scale;
-      const screenY = cy + y2 * scale * 1.05; // 稍微拉长一点点，更修长
+            ctx.fillStyle = gradient;
+            ctx.globalCompositeOperation = 'lighter';
+            
+            // 绘制中心光团
+            ctx.beginPath();
+            ctx.arc(0, 0, 30, 0, Math.PI * 2);
+            ctx.fill();
 
-      // 闪烁逻辑：正弦波呼吸
-      const shimmer = Math.sin(time * p.blinkSpeed + p.blinkOffset); 
-      // 亮度范围：0.3 (暗) ~ 1.0 (亮)
-      const alpha = 0.3 + 0.7 * (shimmer * 0.5 + 0.5);
+            // 绘制十字星芒
+            ctx.fillStyle = '#fff';
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#fff';
+            
+            // 旋转星芒
+            ctx.rotate(time * 0.5);
+            
+            for(let j=0; j<2; j++) {
+                ctx.rotate(Math.PI / 2);
+                ctx.beginPath();
+                ctx.moveTo(-2, 0);
+                ctx.lineTo(0, -25 - Math.sin(time * 5)*5); // 伸缩效果
+                ctx.lineTo(2, 0);
+                ctx.lineTo(0, 25 + Math.sin(time * 5)*5);
+                ctx.fill();
+            }
 
-      pData.push({ 
-        x: screenX, y: screenY, z: depth, 
-        size: p.size * scale, 
-        colorMix: p.colorMix, 
-        alpha 
-      });
-    }
+            ctx.restore();
+        }
 
-    // 按深度排序（虽然是光点，排序后叠加效果更自然）
-    pData.sort((a, b) => b.z - a.z);
+        function drawText() {
+            const fontSize = Math.min(width, height) * 0.08;
+            ctx.font = `${fontSize}px "Great Vibes", cursive`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            const textX = width / 2;
+            const textY = height * 0.88;
 
-    // 2. 绘制粒子
-    // 使用 Screen 模式：像光线一样叠加，柔和不刺眼
-    ctx.globalCompositeOperation = 'screen'; 
+            // 文字发光效果 (霓虹质感)
+            ctx.save();
+            
+            // 阴影/光晕层
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = 'rgba(0, 195, 255, 0.8)'; // 青色光晕
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.fillText('Merry Christmas', textX, textY);
 
-    for (let i = 0; i < pData.length; i++) {
-      const p = pData[i];
-      
-      // 唯美调色板
-      // Cool (顶部/未来感): R:100 G:220 B:255 (Cyan/Blue)
-      // Warm (底部/温馨): R:255 G:200 B:120 (Gold/Amber)
-      const r = Math.floor(lerp(100, 255, p.colorMix));
-      const g = Math.floor(lerp(220, 200, p.colorMix));
-      const b = Math.floor(lerp(255, 120, p.colorMix));
-      
-      // 画光晕 (虚)
-      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${p.alpha * 0.3})`; 
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size * 3.0, 0, Math.PI * 2);
-      ctx.fill();
+            // 再次叠加暖色，营造冷暖对比
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = 'rgba(255, 215, 0, 0.6)'; // 金色微光
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.fillText('Merry Christmas', textX, textY);
+            
+            ctx.restore();
+        }
 
-      // 画核心 (实)
-      ctx.fillStyle = `rgba(255, 255, 255, ${p.alpha * 0.9})`; 
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size * 0.7, 0, Math.PI * 2);
-      ctx.fill();
-    }
+        function animate() {
+            // 背景清除，带一点透明度制造拖尾效果（模拟流光质感）
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)'; 
+            // 如果想要纯黑背景不带拖尾，改成: ctx.clearRect(0, 0, width, height); 
+            // 这里的 fillRect 能让粒子运动产生丝滑的视觉残留
+            ctx.fillRect(0, 0, width, height);
 
-    // 3. 绘制顶部高亮星星
-    const topY = -190 - 10; 
-    let tx = 0, ty = topY, tz = 0;
-    // 星星也要跟随旋转
-    let tx1 = tx * cy_cos - tz * cy_sin;
-    let tz1 = tz * cy_cos + tx * cy_sin;
-    let ty2 = ty * cx_cos - tz1 * cx_sin;
-    let tz2 = tz1 * cx_cos + ty * cx_sin;
+            // 使用 lighter 混合模式实现发光叠加
+            ctx.globalCompositeOperation = 'lighter';
 
-    const tDepth = tz2 + 700;
-    const tScale = focal / tDepth;
-    const tScreenX = cx + tx1 * tScale;
-    const tScreenY = cy + ty2 * tScale * 1.05;
-    
-    // 星星呼吸
-    const starPulse = 0.8 + 0.2 * Math.sin(time * 3);
-    drawStar(tScreenX, tScreenY, tScale * 16, starPulse);
+            time += 0.02;
 
-    requestAnimationFrame(draw);
-  }
+            // 绘制树主体粒子
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
 
-  // 绘制精致的十字星
-  function drawStar(x, y, r, alpha) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.globalCompositeOperation = 'screen';
-    
-    // 核心亮斑
-    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 0.4, 0, Math.PI * 2);
-    ctx.fill();
+            // 恢复正常混合模式绘制顶部星星和文字
+            ctx.globalCompositeOperation = 'source-over';
+            drawStar();
+            
+            // 再次切换混合模式让文字更亮
+            drawText();
 
-    // 大光晕
-    const grd = ctx.createRadialGradient(0, 0, r*0.2, 0, 0, r*2.0);
-    grd.addColorStop(0, `rgba(255, 245, 220, ${alpha * 0.5})`);
-    grd.addColorStop(1, `rgba(255, 245, 220, 0)`);
-    ctx.fillStyle = grd;
-    ctx.beginPath();
-    ctx.arc(0, 0, r*2.0, 0, Math.PI * 2);
-    ctx.fill();
+            requestAnimationFrame(animate);
+        }
 
-    // 细长的十字光芒
-    ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.9})`;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(-r*2.0, 0); ctx.lineTo(r*2.0, 0); // 横
-    ctx.moveTo(0, -r*2.0); ctx.lineTo(0, r*2.0); // 竖
-    ctx.stroke();
-
-    // 柔和的对角光芒
-    ctx.strokeStyle = `rgba(255, 240, 200, ${alpha * 0.5})`;
-    ctx.lineWidth = 1;
-    ctx.rotate(Math.PI / 4);
-    ctx.beginPath();
-    ctx.moveTo(-r*1.0, 0); ctx.lineTo(r*1.0, 0);
-    ctx.moveTo(0, -r*1.0); ctx.lineTo(0, r*1.0);
-    ctx.stroke();
-
-    ctx.restore();
-  }
-
-  requestAnimationFrame(draw);
-})();
-</script>
+        animate();
+    </script>
 </body>
 </html>
